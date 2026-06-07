@@ -1,97 +1,79 @@
-import os
-from typing import TypedDict, Annotated, Sequence
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
-from langgraph.graph import StateGraph, END
-from dotenv import load_dotenv
+"""Thin public API wrapper around the compiled LangGraph agent.
 
-load_dotenv()
+Usage::
 
-# Set up the Gemini LLM
-# The API key is automatically picked up from the GEMINI_API_KEY env variable
-api_key = os.environ.get("GEMINI_API_KEY")
-if not api_key:
-    print("WARNING: GEMINI_API_KEY not found in environment.")
+    from app.agents.health_agent import run_health_agent
+    result = run_health_agent("machine-001", {"engine_rpm": 2400, ...}, db)
+"""
+from __future__ import annotations
 
-llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0, api_key=api_key)
+import logging
+from datetime import datetime, timezone
+from typing import Any, Dict, Optional
 
-class AgentState(TypedDict):
-    messages: Annotated[Sequence[BaseMessage], lambda a, b: a + b]
-    machine_id: str
-    vibration_level: float
-    engine_temp: float
-    engine_rpm: float
-    risk_score: float
-    analysis: str
+logger = logging.getLogger(__name__)
 
-def analyze_telemetry(state: AgentState):
-    """Agent node that analyzes telemetry to calculate a risk score."""
-    vibration = state["vibration_level"]
-    temp = state["engine_temp"]
-    rpm = state["engine_rpm"]
-    
-    # Simple risk heuristic for MVP. 
-    # In production, this would be a XGBoost/SHAP model prediction.
-    risk_score = 0.0
-    if vibration > 40:
-        risk_score += 0.5
-    if temp > 100:
-        risk_score += 0.3
-    if rpm > 2200:
-        risk_score += 0.1
-        
-    return {"risk_score": min(risk_score, 1.0)}
 
-def generate_explanation(state: AgentState):
-    """Agent node that uses Gemini to explain the risk score in plain English."""
-    if state["risk_score"] < 0.4:
-        return {"analysis": "Machine is operating normally. No immediate action required."}
-        
-    prompt = f"""
-    You are an expert industrial mechanic AI (SustainTwin).
-    Analyze the following machine telemetry for Machine {state['machine_id']}:
-    - Vibration Level: {state['vibration_level']}
-    - Engine Temperature: {state['engine_temp']}
-    - Engine RPM: {state['engine_rpm']}
-    
-    The calculated risk of imminent failure is {state['risk_score'] * 100}%.
-    
-    Provide a 3-sentence root cause analysis and a recommended action for the field technician.
-    Do not use markdown formatting like bolding or lists, just write a short paragraph.
+def run_health_agent(
+    machine_id: str,
+    sensor_data: dict,
+    db_session: Any,
+) -> Dict[str, Any]:
+    """Invoke the SustainTwin multi-agent graph and return a flat result dict.
+
+    Parameters
+    ----------
+    machine_id:
+        Unique identifier of the machine being analysed.
+    sensor_data:
+        Dictionary of current sensor readings (e.g. ``engine_rpm``,
+        ``engine_temperature``, ``vibration_level``, ``oil_pressure``,
+        ``fuel_consumption``).
+    db_session:
+        An active SQLAlchemy ``Session`` used by the ingest node to query
+        historical telemetry.
+
+    Returns
+    -------
+    dict with keys:
+        - ``severity`` (str): 'low', 'medium', or 'critical'
+        - ``diagnosis`` (dict | None): root_cause, confidence, recommended_action, urgency
+        - ``sustainability`` (dict | None): carbon_delta_kg, sustainability_recommendation
+        - ``shap_values`` (dict | None): per-feature SHAP importances
+        - ``anomaly_flags`` (dict | None): per-sensor boolean flags
+        - ``z_scores`` (dict | None): per-sensor z-score values
     """
-    
-    response = llm.invoke([HumanMessage(content=prompt)])
-    return {"analysis": response.content}
+    from app.agents.graph import agent_graph
 
-# Build the LangGraph
-workflow = StateGraph(AgentState)
-
-# Add nodes
-workflow.add_node("analyze_telemetry", analyze_telemetry)
-workflow.add_node("generate_explanation", generate_explanation)
-
-# Add edges
-workflow.set_entry_point("analyze_telemetry")
-workflow.add_edge("analyze_telemetry", "generate_explanation")
-workflow.add_edge("generate_explanation", END)
-
-# Compile the graph
-health_agent_app = workflow.compile()
-
-def run_health_agent(machine_id: str, vibration: float, temp: float, rpm: float):
-    """Entry point to invoke the compiled LangGraph agent."""
-    initial_state = {
-        "messages": [],
+    initial_state: Dict[str, Any] = {
         "machine_id": machine_id,
-        "vibration_level": vibration,
-        "engine_temp": temp,
-        "engine_rpm": rpm,
-        "risk_score": 0.0,
-        "analysis": ""
+        "sensor_data": sensor_data,
+        "db_session": db_session,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
-    
-    result = health_agent_app.invoke(initial_state)
+
+    try:
+        result = agent_graph.invoke(initial_state)
+    except Exception:
+        logger.error(
+            "Agent graph invocation failed for machine %s",
+            machine_id,
+            exc_info=True,
+        )
+        return {
+            "severity": "low",
+            "diagnosis": None,
+            "sustainability": None,
+            "shap_values": None,
+            "anomaly_flags": None,
+            "z_scores": None,
+        }
+
     return {
-        "risk_score": result["risk_score"],
-        "analysis": result["analysis"]
+        "severity": result.get("severity", "low"),
+        "diagnosis": result.get("diagnosis"),
+        "sustainability": result.get("sustainability"),
+        "shap_values": result.get("shap_values"),
+        "anomaly_flags": result.get("anomaly_flags"),
+        "z_scores": result.get("z_scores"),
     }

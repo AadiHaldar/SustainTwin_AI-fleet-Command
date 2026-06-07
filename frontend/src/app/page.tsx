@@ -1,14 +1,17 @@
 "use client"
 
 import * as React from "react"
-import { motion } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
 import { Activity, AlertTriangle, Cpu, Droplet, Zap } from "lucide-react"
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { useWebSocket } from "@/hooks/use-websocket"
+import { fetchTelemetry, fetchDiagnostics, type TelemetryReading, type DiagnosisRecord } from "@/hooks/use-api"
 
-const telemetryData = [
+// Fallback static data for when backend is unavailable
+const fallbackTelemetry = [
   { time: "00:00", rpm: 1200, temp: 85, vibration: 12 },
   { time: "04:00", rpm: 1300, temp: 88, vibration: 14 },
   { time: "08:00", rpm: 2200, temp: 95, vibration: 28 },
@@ -19,9 +22,80 @@ const telemetryData = [
 ]
 
 export default function FleetCommand() {
+  const [chartData, setChartData] = React.useState(fallbackTelemetry)
+  const [alerts, setAlerts] = React.useState<DiagnosisRecord[]>([])
+  const [machineCount, setMachineCount] = React.useState({ active: 0, total: 0 })
+  const [failureCount, setFailureCount] = React.useState(0)
+  const [pulseCard, setPulseCard] = React.useState<string | null>(null)
+
+  // WebSocket for real-time updates
+  const { lastMessage } = useWebSocket({
+    url: "ws://localhost:8000/ws/telemetry",
+    onMessage: (data: unknown) => {
+      const msg = data as Record<string, unknown>
+      if (msg?.type === "telemetry") {
+        const sd = msg.sensor_data as Record<string, number> | undefined
+        if (sd) {
+          setChartData((prev) => {
+            const newPoint = {
+              time: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
+              rpm: Math.round(sd.engine_rpm || 0),
+              temp: Math.round(sd.engine_temperature || 0),
+              vibration: Math.round(sd.vibration_level || 0),
+            }
+            return [...prev.slice(-11), newPoint]
+          })
+          setPulseCard(msg.machine_id as string)
+          setTimeout(() => setPulseCard(null), 2000)
+        }
+      }
+      if (msg?.type === "diagnosis") {
+        setAlerts((prev) => [msg as unknown as DiagnosisRecord, ...prev.slice(0, 4)])
+        setFailureCount((c) => c + 1)
+      }
+    },
+  })
+
+  // Fetch initial data from API
+  React.useEffect(() => {
+    fetchTelemetry()
+      .then((readings) => {
+        if (readings.length > 0) {
+          const machineIds = new Set(readings.map((r) => r.machine_id))
+          setMachineCount({ active: machineIds.size, total: machineIds.size })
+
+          const chartPoints = readings.slice(-12).map((r) => ({
+            time: new Date(r.timestamp).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
+            rpm: Math.round(r.sensor_data?.engine_rpm || 0),
+            temp: Math.round(r.sensor_data?.engine_temperature || 0),
+            vibration: Math.round(r.sensor_data?.vibration_level || 0),
+          }))
+          if (chartPoints.length > 0) setChartData(chartPoints)
+        }
+      })
+      .catch(() => {})
+
+    fetchDiagnostics()
+      .then((diags) => {
+        if (diags.length > 0) {
+          setAlerts(diags.slice(0, 5))
+          setFailureCount(diags.filter((d) => d.severity === "critical").length)
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  const riskLabel = (severity: string | null) => {
+    if (!severity) return { label: "Unknown", color: "border-zinc-500/50 text-zinc-400 bg-zinc-500/10" }
+    switch (severity.toLowerCase()) {
+      case "critical": return { label: "Critical", color: "border-red-500/50 text-red-400 bg-red-500/10" }
+      case "medium": return { label: "High", color: "border-orange-500/50 text-orange-400 bg-orange-500/10" }
+      default: return { label: "Moderate", color: "border-blue-500/50 text-blue-400 bg-blue-500/10" }
+    }
+  }
+
   return (
     <div className="space-y-8 relative">
-      {/* Background glowing orb for premium feel */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-emerald-500/10 rounded-full blur-[120px] -z-10 pointer-events-none"></div>
 
       <div className="flex justify-between items-end pb-2">
@@ -32,7 +106,6 @@ export default function FleetCommand() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        {/* KPI Cards */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.1 }}>
           <Card className="relative overflow-hidden bg-zinc-950/40 backdrop-blur-2xl border-white/10 shadow-[0_0_20px_rgba(16,185,129,0.05)] hover:border-emerald-500/50 hover:shadow-[0_0_30px_rgba(16,185,129,0.15)] transition-all duration-300">
             <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 blur-[40px] rounded-full"></div>
@@ -41,7 +114,9 @@ export default function FleetCommand() {
               <Cpu className="h-5 w-5 text-emerald-400" />
             </CardHeader>
             <CardContent className="z-10 relative">
-              <div className="text-3xl font-extrabold text-white">124 <span className="text-xl text-emerald-400/80 font-medium">/ 125</span></div>
+              <div className="text-3xl font-extrabold text-white">
+                {machineCount.active || 5} <span className="text-xl text-emerald-400/80 font-medium">/ {machineCount.total || 5}</span>
+              </div>
               <div className="flex items-center gap-2 mt-2">
                 <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
                 <p className="text-xs text-emerald-400/80 font-medium tracking-wide">99.2% Availability</p>
@@ -74,7 +149,7 @@ export default function FleetCommand() {
               <AlertTriangle className="h-5 w-5 text-red-400" />
             </CardHeader>
             <CardContent className="z-10 relative">
-              <div className="text-3xl font-extrabold text-white">3</div>
+              <div className="text-3xl font-extrabold text-white">{failureCount || 3}</div>
               <div className="flex items-center gap-2 mt-2">
                 <span className="flex h-2 w-2 rounded-full bg-red-500 animate-pulse"></span>
                 <p className="text-xs text-red-400/80 font-medium">Critical attention needed</p>
@@ -109,7 +184,7 @@ export default function FleetCommand() {
             <CardContent>
               <div className="h-[350px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={telemetryData} margin={{ top: 20, right: 30, left: -20, bottom: 0 }}>
+                  <AreaChart data={chartData} margin={{ top: 20, right: 30, left: -20, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorRpm" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4} />
@@ -123,7 +198,7 @@ export default function FleetCommand() {
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                     <XAxis dataKey="time" stroke="#666" fontSize={11} tickLine={false} axisLine={false} dy={10} />
                     <YAxis stroke="#666" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(value) => `${value}`} dx={-10} />
-                    <Tooltip 
+                    <Tooltip
                       contentStyle={{ backgroundColor: 'rgba(9, 9, 11, 0.9)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', padding: '12px' }}
                       itemStyle={{ fontWeight: 600 }}
                     />
@@ -138,7 +213,7 @@ export default function FleetCommand() {
 
         <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5, delay: 0.2 }} className="col-span-3">
           <Card className="bg-zinc-950/60 backdrop-blur-2xl border-white/10 h-full shadow-2xl relative overflow-hidden">
-             <div className="absolute top-0 right-0 p-4 opacity-[0.03] pointer-events-none">
+            <div className="absolute top-0 right-0 p-4 opacity-[0.03] pointer-events-none">
               <Activity className="h-64 w-64" />
             </div>
             <CardHeader>
@@ -148,32 +223,78 @@ export default function FleetCommand() {
               <CardDescription className="font-medium">Autonomous agent recommendations</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 relative z-10">
-              {[
-                { machine: "M-104", issue: "Bearing failure imminent (82% probability). Immediate inspection required.", agent: "Health Agent", time: "Just now", risk: "Critical" },
-                { machine: "M-102", issue: "Sub-optimal gear shifting leading to 14% higher fuel burn.", agent: "Carbon Agent", time: "15 min ago", risk: "Moderate" },
-                { machine: "M-108", issue: "Coolant pressure dropping. Risk of overheating in next shift.", agent: "Predictive Agent", time: "1 hr ago", risk: "High" },
-              ].map((alert, i) => (
-                <div key={i} className="group flex flex-col p-4 border border-white/5 rounded-xl bg-gradient-to-br from-white/[0.03] to-transparent hover:bg-white/[0.06] hover:border-white/10 transition-all duration-300">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-3">
-                      <span className="font-bold text-white">{alert.machine}</span>
-                      <Badge variant="outline" className={`font-semibold tracking-wide text-[10px] uppercase border px-2 py-0 ${alert.risk === "Critical" ? "border-red-500/50 text-red-400 bg-red-500/10" : alert.risk === "High" ? "border-orange-500/50 text-orange-400 bg-orange-500/10" : "border-blue-500/50 text-blue-400 bg-blue-500/10"}`}>
-                        {alert.risk}
-                      </Badge>
-                    </div>
-                    <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{alert.time}</div>
-                  </div>
-                  <p className="text-sm text-zinc-300 leading-relaxed mb-3">{alert.issue}</p>
-                  <div className="flex justify-between items-center mt-auto">
-                    <p className="text-[11px] font-medium text-zinc-500 bg-zinc-900 px-2 py-1 rounded-md border border-white/5 flex items-center gap-1">
-                      <BotIcon /> {alert.agent}
-                    </p>
-                    <button className="text-xs font-semibold text-white bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-md transition-colors">
-                      View Action
-                    </button>
-                  </div>
-                </div>
-              ))}
+              <AnimatePresence mode="popLayout">
+                {(alerts.length > 0
+                  ? alerts.slice(0, 3).map((alert, i) => {
+                      const risk = riskLabel(alert.severity)
+                      return (
+                        <motion.div
+                          key={alert.id || i}
+                          initial={{ opacity: 0, x: 20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: -20 }}
+                          transition={{ duration: 0.3 }}
+                          className="group flex flex-col p-4 border border-white/5 rounded-xl bg-gradient-to-br from-white/[0.03] to-transparent hover:bg-white/[0.06] hover:border-white/10 transition-all duration-300"
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-3">
+                              <span className="font-bold text-white">{alert.machine_id}</span>
+                              <Badge variant="outline" className={`font-semibold tracking-wide text-[10px] uppercase border px-2 py-0 ${risk.color}`}>
+                                {risk.label}
+                              </Badge>
+                            </div>
+                            <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                              {alert.timestamp ? new Date(alert.timestamp).toLocaleTimeString() : "Just now"}
+                            </div>
+                          </div>
+                          <p className="text-sm text-zinc-300 leading-relaxed mb-3">
+                            {alert.root_cause || "Analyzing..."}
+                          </p>
+                          <div className="flex justify-between items-center mt-auto">
+                            <p className="text-[11px] font-medium text-zinc-500 bg-zinc-900 px-2 py-1 rounded-md border border-white/5 flex items-center gap-1">
+                              <BotIcon /> Health Agent
+                            </p>
+                            <button className="text-xs font-semibold text-white bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-md transition-colors">
+                              View Action
+                            </button>
+                          </div>
+                        </motion.div>
+                      )
+                    })
+                  : [
+                      { machine: "M-104", issue: "Bearing failure imminent (82% probability). Immediate inspection required.", agent: "Health Agent", time: "Just now", risk: "Critical" },
+                      { machine: "M-102", issue: "Sub-optimal gear shifting leading to 14% higher fuel burn.", agent: "Carbon Agent", time: "15 min ago", risk: "Moderate" },
+                      { machine: "M-108", issue: "Coolant pressure dropping. Risk of overheating in next shift.", agent: "Predictive Agent", time: "1 hr ago", risk: "High" },
+                    ].map((alert, i) => (
+                      <motion.div
+                        key={i}
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.3, delay: i * 0.1 }}
+                        className="group flex flex-col p-4 border border-white/5 rounded-xl bg-gradient-to-br from-white/[0.03] to-transparent hover:bg-white/[0.06] hover:border-white/10 transition-all duration-300"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-3">
+                            <span className="font-bold text-white">{alert.machine}</span>
+                            <Badge variant="outline" className={`font-semibold tracking-wide text-[10px] uppercase border px-2 py-0 ${alert.risk === "Critical" ? "border-red-500/50 text-red-400 bg-red-500/10" : alert.risk === "High" ? "border-orange-500/50 text-orange-400 bg-orange-500/10" : "border-blue-500/50 text-blue-400 bg-blue-500/10"}`}>
+                              {alert.risk}
+                            </Badge>
+                          </div>
+                          <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{alert.time}</div>
+                        </div>
+                        <p className="text-sm text-zinc-300 leading-relaxed mb-3">{alert.issue}</p>
+                        <div className="flex justify-between items-center mt-auto">
+                          <p className="text-[11px] font-medium text-zinc-500 bg-zinc-900 px-2 py-1 rounded-md border border-white/5 flex items-center gap-1">
+                            <BotIcon /> {alert.agent}
+                          </p>
+                          <button className="text-xs font-semibold text-white bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-md transition-colors">
+                            View Action
+                          </button>
+                        </div>
+                      </motion.div>
+                    ))
+                )}
+              </AnimatePresence>
             </CardContent>
           </Card>
         </motion.div>

@@ -1,22 +1,28 @@
-from fastapi import FastAPI
-from fastapi import Depends
+"""SustainTwin AI -- FastAPI application entry point."""
+
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from app.api import auth, telemetry
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.database import Base, engine, get_db
 
-app = FastAPI(
-    title="SustainTwin AI API",
-    description="Backend API for SustainTwin Agentic Edge Intelligence Platform",
-    version="1.0.0"
-)
+# Import routers
+from app.api import auth, telemetry, diagnostics
+from app.api.websocket import router as ws_router
 
 settings = get_settings()
 
-# CORS configuration
+app = FastAPI(
+    title="SustainTwin AI API",
+    description="Backend API for SustainTwin Agentic Edge Intelligence Platform",
+    version=settings.VERSION,
+)
+
+# ---------------------------------------------------------------------------
+# CORS
+# ---------------------------------------------------------------------------
 origins = [
     "http://localhost",
     "http://localhost:3000",
@@ -30,18 +36,39 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
-app.include_router(telemetry.router, prefix="/api/v1/telemetry", tags=["Telemetry"])
+# ---------------------------------------------------------------------------
+# Register routers
+# ---------------------------------------------------------------------------
+app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["Authentication"])
+app.include_router(telemetry.router, prefix=f"{settings.API_V1_STR}/telemetry", tags=["Telemetry"])
+app.include_router(diagnostics.router, prefix=f"{settings.API_V1_STR}/diagnostics", tags=["Diagnostics"])
+app.include_router(ws_router, tags=["WebSocket"])
+
+# ---------------------------------------------------------------------------
+# Startup: ensure all tables exist
+# ---------------------------------------------------------------------------
 
 @app.on_event("startup")
 def create_tables() -> None:
-    import app.models.machine  # noqa: F401
+    # Import all models so SQLAlchemy sees them before create_all
+    import app.models.machine   # noqa: F401
+    import app.models.user      # noqa: F401
+    import app.models.diagnosis  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
 
+
+# ---------------------------------------------------------------------------
+# Health-check endpoints
+# ---------------------------------------------------------------------------
+
 @app.get("/")
 def read_root():
-    return {"message": "Welcome to SustainTwin AI API"}
+    return {
+        "message": "Welcome to SustainTwin AI API",
+        "version": settings.VERSION,
+    }
+
 
 @app.get("/health")
 def health_check():
@@ -50,11 +77,16 @@ def health_check():
 
 @app.get("/health/database")
 def database_health_check(db: Session = Depends(get_db)):
-    result = db.execute(text("SELECT 1")).scalar_one()
+    try:
+        result = db.execute(text("SELECT 1")).scalar_one()
+        connected = result == 1
+    except Exception:
+        connected = False
+
     backend = "sqlite" if settings.DATABASE_URL.startswith("sqlite") else "postgresql"
 
     return {
-        "status": "ok" if result == 1 else "degraded",
+        "status": "ok" if connected else "degraded",
         "database": backend,
-        "connected": result == 1,
+        "connected": connected,
     }

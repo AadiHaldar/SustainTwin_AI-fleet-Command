@@ -1,147 +1,204 @@
-# SustainTwin AI 
+# SustainTwin AI
+
+[![CI](https://github.com/AadiHaldar/SustainTwin_AI-fleet-Command/actions/workflows/ci.yml/badge.svg)](https://github.com/AadiHaldar/SustainTwin_AI-fleet-Command/actions/workflows/ci.yml)
 
 **Agentic Edge Intelligence for Sustainable Heavy Machinery Fleets**
 
-SustainTwin AI is a full-stack, production-grade platform that enables autonomous fleet orchestration for industrial heavy machinery. By combining **Agentic AI, Edge AI, Digital Twins, Predictive Maintenance, and Sustainability Intelligence**, the platform transforms raw telemetry into actionable, explainable insights.
-
-Designed for the modern industrial enterprise (construction, mining, logistics, manufacturing), SustainTwin is scalable, modular, and visually stunning.
+SustainTwin AI is a full-stack platform that enables autonomous fleet orchestration for industrial heavy machinery. By combining **multi-agent LangGraph reasoning, on-device IsolationForest inference, SHAP-guided Gemini XAI, and real-time WebSocket telemetry**, the platform transforms raw sensor data into actionable, explainable insights.
 
 ---
 
-## 🚀 Key Features
+## Architecture
 
-*   **Fleet Command Center**: A centralized, glassmorphism-styled dashboard built with Next.js, Recharts, and Framer Motion for real-time fleet oversight.
-*   **Agentic Edge AI**: Simulated edge nodes run localized anomaly detection before syncing payloads to the cloud, reducing bandwidth and ensuring offline resilience.
-*   **Predictive Maintenance (RUL)**: Machine health tracking that predicts Remaining Useful Life (RUL) using realistic telemetry datasets (HuggingFace/Kaggle).
-*   **Sustainability Intelligence**: Carbon footprint tracking and agent-driven emission reduction recommendations (e.g., optimizing idle times, route adjustments).
-*   **Explainable AI (XAI)**: Demystifies predictions using SHAP feature importance and Google Gemini LLM reasoning, providing natural language root-cause analysis.
-*   **Enterprise Security**: Role-Based Access Control (RBAC) and JWT authentication built into the FastAPI backend.
+```mermaid
+graph TB
+    subgraph Edge["Edge Node (IsolationForest)"]
+        S[Sensor Readings] --> IF[IsolationForest Scoring]
+        IF -->|Anomaly Detected| SYNC[POST /telemetry/sync]
+        IF -->|Normal| DROP[Filtered - saves bandwidth]
+    end
 
----
+    subgraph Backend["FastAPI Backend"]
+        SYNC --> DB[(PostgreSQL / Supabase)]
+        SYNC --> CACHE[(Redis Cache)]
+        SYNC -->|is_anomaly=true| GRAPH
 
-## 🧠 Core Workflows & Agentic AI
+        subgraph GRAPH["LangGraph Multi-Agent Pipeline"]
+            N1[TelemetryIngestNode<br/>Z-score anomaly detection] -->|severity != low| N2[HealthDiagnosticNode<br/>SHAP + Gemini reasoning]
+            N1 -->|severity == low| END1[END - lightweight response]
+            N2 --> N3[SustainabilityNode<br/>Carbon impact calculation]
+            N3 --> END2[END - full diagnosis]
+        end
 
-SustainTwin AI is not a passive dashboard; it is an active, autonomous system powered by LangGraph and Google Gemini.
+        GRAPH --> DIAG[(Diagnoses Table)]
+        GRAPH --> WS[WebSocket Broadcast]
+    end
 
-1. **Edge-to-Cloud Sync**: The simulated Edge Node (representing an NVIDIA Jetson on a machine) monitors high-frequency telemetry. It runs local heuristics and only syncs anomalies to the cloud to save bandwidth.
-2. **LangGraph Orchestration**: When an anomaly hits the FastAPI `/sync` endpoint, it triggers the **Health Agent**.
-3. **Explainable AI (XAI)**: The Health Agent passes the raw telemetry context to the **Google Gemini LLM** (`gemini-2.5-flash`), instructing it to act as an expert industrial mechanic. Gemini generates a plain-English Root Cause Analysis and recommended mitigation strategy, which is immediately pushed to the Frontend Command Center.
-
----
-
-## 🔬 Proof of Concept (POC) & Datasets
-
-To prove the platform's robustness and ability to generalize beyond a single schema, the POC utilizes two highly-regarded industrial datasets:
-
-*   **AI4I 2020 Predictive Maintenance Dataset**: Sourced via Hugging Face. This provides 19,535 rows of realistic milling machine telemetry (RPM, Temperature, Tool Wear) used to seed the core SQLite database and drive the frontend visualizations.
-*   **Microsoft Azure Predictive Maintenance Dataset**: Sourced dynamically via the Kaggle API. We built an exploration script (`explore_kaggle.py`) that successfully downloads and parses **876,100 rows** of alternative telemetry (Voltage, Rotation, Pressure, Vibration) and pipes it directly into our Gemini Agent, proving the system can generalize to entirely new sensor arrays seamlessly.
-
----
-
-## 🏗️ Architecture Stack
-
-### Frontend (The "Wow" Factor)
-*   **Framework**: Next.js 15 (App Router), React, TypeScript
-*   **Styling**: Tailwind CSS, ShadCN UI (Dark mode, Glassmorphism aesthetics)
-*   **Animations & Charts**: Framer Motion, Recharts
-*   **Icons**: Lucide React
-
-### Backend (The "Brain")
-*   **Framework**: FastAPI (Python)
-*   **Database**: SQLite (Development/MVP) -> Easily scalable to PostgreSQL
-*   **ORM**: SQLAlchemy
-*   **Agentic Framework**: LangGraph (for multi-agent reasoning)
-*   **LLM Integration**: Google Gemini (for XAI)
-*   **Security**: Passlib (Bcrypt), python-jose (JWT)
+    subgraph Frontend["Next.js Dashboard"]
+        WS --> RT[Real-time Card Updates]
+        RT --> KPI[KPI Cards]
+        RT --> CHART[Live Telemetry Charts]
+        RT --> ALERTS[Agent Insights Panel]
+    end
+```
 
 ---
 
-## 🛠️ Local Setup & Installation
+## Key Features
 
-Follow these steps to run the platform locally on your machine.
+| Feature | Implementation |
+|---|---|
+| **Multi-Agent Reasoning** | 3-node LangGraph graph with conditional routing. Only calls Gemini for medium/critical anomalies. |
+| **Explainable AI** | SHAP feature importances are injected into the Gemini prompt, guiding the LLM's root-cause analysis. |
+| **Edge Intelligence** | `sklearn.IsolationForest` runs on-device, filtering ~85-95% of normal readings before cloud sync. |
+| **Real-Time Dashboard** | WebSocket connection pushes telemetry and diagnoses to the frontend instantly. |
+| **RBAC Security** | JWT auth with 3 roles (operator/engineer/admin). Routes enforce role-based access. |
+| **Sustainability** | Carbon impact calculated using EPA emission factors. Actionable recommendations per anomaly. |
+
+---
+
+## Tech Stack
+
+### Frontend
+- **Next.js 16** (App Router), React 19, TypeScript
+- **Tailwind CSS v4**, ShadCN UI (dark glassmorphism)
+- **Recharts** (area/bar/pie charts), **Framer Motion** (animations)
+- **WebSocket** (native API with auto-reconnect)
+
+### Backend
+- **FastAPI** (Python 3.11+)
+- **PostgreSQL** via Supabase (production) or Docker (local dev)
+- **Redis** for telemetry caching (optional, graceful fallback)
+- **LangGraph** + **Google Gemini 2.5 Flash** (multi-agent reasoning)
+- **SHAP** + **scikit-learn** (explainability + anomaly detection)
+- **SQLAlchemy** ORM, **JWT** auth (python-jose + bcrypt)
+
+### Edge
+- **scikit-learn IsolationForest** (on-device ML inference)
+- Configurable anomaly threshold with compression ratio logging
+
+---
+
+## Local Setup
 
 ### Prerequisites
-*   Node.js 18+
-*   Python 3.10+
-*   Git
+- Node.js 18+, Python 3.11+, Git
+- Docker (optional, for local Postgres + Redis)
 
-### 1. Clone the Repository
+### 1. Clone & Configure
 ```bash
 git clone https://github.com/AadiHaldar/SustainTwin_AI-fleet-Command.git
 cd SustainTwin_AI-fleet-Command
+cp .env.example backend/.env
+# Edit backend/.env with your Supabase URL and Gemini API key
 ```
 
-### 2. Backend Setup
-The backend serves the API and the AI agent logic.
+### 2. Backend
 ```bash
 cd backend
 python -m venv venv
-# On Windows:
-venv\Scripts\activate
-# On Mac/Linux:
-# source venv/bin/activate
+venv\Scripts\activate       # Windows
+# source venv/bin/activate  # Mac/Linux
 
 pip install -r requirements.txt
-```
-
-**Seed the Database:**
-We use a public HuggingFace dataset to simulate realistic machinery telemetry.
-```bash
-python app/core/ingest_data.py
-```
-
-**Run the FastAPI Server:**
-```bash
+python app/core/ingest_data.py   # Seed DB + train anomaly model
 uvicorn app.main:app --reload --port 8000
 ```
-*The API will be available at `http://localhost:8000`. You can view the interactive Swagger docs at `http://localhost:8000/docs`.*
 
-### 3. Frontend Setup
-The frontend is the glassmorphism UI for fleet orchestration.
+### 3. Frontend
 ```bash
-# Open a new terminal
 cd frontend
 npm install
 npm run dev
 ```
-*The dashboard will be available at `http://localhost:3000`.*
 
 ### 4. Edge Simulator (Optional)
-To test the cloud-sync and edge-anomaly detection capabilities, run the simulated Edge node.
 ```bash
-# Open a new terminal
 cd edge
-python main.py
+pip install -r requirements.txt
+python main.py --machine-id M-999
 ```
-*This script will generate telemetry and send it to the FastAPI backend every 5 seconds.*
+
+### 5. Docker (Alternative)
+```bash
+docker-compose up -d   # Starts Postgres + Redis + Backend
+```
 
 ---
 
-## 📂 Project Structure
+## API Endpoints
 
-```text
+| Method | Path | Auth | Role |
+|--------|------|------|------|
+| POST | `/api/v1/auth/token` | - | Login |
+| GET | `/api/v1/telemetry` | JWT | operator, engineer, admin |
+| GET | `/api/v1/telemetry/{id}` | JWT | operator, engineer, admin |
+| POST | `/api/v1/telemetry/sync` | JWT | engineer, admin |
+| GET | `/api/v1/diagnostics` | JWT | engineer, admin |
+| GET | `/api/v1/diagnostics/{id}` | JWT | engineer, admin |
+| WS | `/ws/telemetry` | - | Real-time broadcast |
+
+**Test credentials:** `operator/operator123`, `engineer/engineer123`, `admin/admin123`
+
+---
+
+## Running Tests
+
+```bash
+cd backend
+pytest tests/ -v
+```
+
+Tests cover:
+- Agent nodes (z-score detection, carbon calculation, conditional routing)
+- API endpoints (auth flow, RBAC enforcement)
+- Edge node (IsolationForest scoring, compression ratio)
+
+---
+
+## Datasets
+
+- **AI4I 2020 Predictive Maintenance** (HuggingFace): 19,535 rows of milling machine telemetry used to seed the database
+- **Microsoft Azure Predictive Maintenance** (Kaggle): 876,100 rows validated via `explore_kaggle.py` to prove schema generalization
+
+---
+
+## Project Structure
+
+```
 SustainTwin/
-├── backend/                  # FastAPI Application
+├── backend/
 │   ├── app/
-│   │   ├── agents/           # LangGraph Agent logic
-│   │   ├── api/              # API Routers (auth, telemetry)
-│   │   ├── core/             # Config, Security, DB session
-│   │   ├── models/           # SQLAlchemy DB Models
-│   │   └── schemas/          # Pydantic schemas
+│   │   ├── agents/          # LangGraph multi-agent pipeline
+│   │   │   ├── graph.py     # StateGraph with conditional routing
+│   │   │   ├── telemetry_ingest_node.py
+│   │   │   ├── health_diagnostic_node.py
+│   │   │   ├── sustainability_node.py
+│   │   │   ├── shap_explainer.py
+│   │   │   └── health_agent.py
+│   │   ├── api/             # FastAPI routers
+│   │   │   ├── auth.py      # JWT login
+│   │   │   ├── telemetry.py # CRUD + agent trigger
+│   │   │   ├── diagnostics.py
+│   │   │   └── websocket.py # Real-time broadcast
+│   │   ├── core/            # Config, DB, Redis, Security
+│   │   └── models/          # SQLAlchemy models
+│   ├── tests/               # pytest test suite
+│   ├── Dockerfile
 │   └── requirements.txt
-├── edge/                     # Edge Node Simulation
-│   └── main.py
-├── frontend/                 # Next.js Application
-│   ├── src/
-│   │   ├── app/              # Routes (health, sustainability, xai)
-│   │   ├── components/       # UI Components (Shadcn, Sidebar)
-│   │   └── lib/              # Utilities
-│   └── package.json
+├── edge/                    # Smart edge node (IsolationForest)
+├── frontend/                # Next.js 16 dashboard
+│   └── src/
+│       ├── app/             # Pages (fleet, health, sustainability, xai)
+│       ├── components/      # UI components (ShadCN + sidebar)
+│       └── hooks/           # useWebSocket, useApi
+├── docker-compose.yml       # Postgres + Redis + Backend
+├── .github/workflows/ci.yml # GitHub Actions CI
 └── README.md
 ```
 
 ---
 
-## 🛡️ License
+## License
 
 This project was built for the Tata Hackathon. All rights reserved by the creators.
