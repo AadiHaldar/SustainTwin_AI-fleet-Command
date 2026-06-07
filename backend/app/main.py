@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from app.api import auth, telemetry
 
 app = FastAPI(
     title="SustainTwin AI API",
@@ -20,6 +21,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
+app.include_router(telemetry.router, prefix="/api/v1/telemetry", tags=["Telemetry"])
 
 @app.get("/")
 def read_root():
