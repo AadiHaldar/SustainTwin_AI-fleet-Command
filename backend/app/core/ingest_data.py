@@ -21,12 +21,8 @@ def seed_machines(db: Session, num_machines=10):
     for i in range(num_machines):
         m = Machine(
             id=f"M-{100+i}",
-            type=random.choice(machine_types),
-            model="Sustain-Series-X",
-            location_lat=37.7749 + random.uniform(-0.1, 0.1),
-            location_lon=-122.4194 + random.uniform(-0.1, 0.1),
-            operating_hours=random.uniform(1000, 5000),
-            status="Active"
+            machine_type=random.choice(machine_types),
+            status="Nominal"
         )
         machines.append(m)
         db.add(m)
@@ -69,11 +65,13 @@ def ingest_telemetry_from_hf(db: Session, machines):
         t = Telemetry(
             machine_id=machine.id,
             timestamp=start_time + timedelta(minutes=i*15),
-            engine_rpm=engine_rpm,
-            engine_temperature=engine_temp,
-            oil_pressure=oil_pressure,
-            vibration_level=vibration,
-            fuel_consumption=fuel_consumption,
+            sensor_data={
+                "engine_rpm": engine_rpm,
+                "engine_temperature": engine_temp,
+                "oil_pressure": oil_pressure,
+                "vibration_level": vibration,
+                "fuel_consumption": fuel_consumption
+            },
             is_anomaly=failure,
             failure_risk=1.0 if failure else random.uniform(0.0, 0.3)
         )

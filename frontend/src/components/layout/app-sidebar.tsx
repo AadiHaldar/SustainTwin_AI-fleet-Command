@@ -3,14 +3,13 @@
 import * as React from "react"
 import {
   Activity,
-  BarChart3,
-  Bot,
+  BrainCircuit,
   Command,
-  Globe2,
-  LayoutDashboard,
-  Leaf,
-  Settings2,
-  ShieldAlert,
+  Hexagon,
+  Radar,
+  ShieldCheck,
+  SlidersHorizontal,
+  Sprout,
 } from "lucide-react"
 
 import {
@@ -22,6 +21,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  SidebarGroup,
 } from "@/components/ui/sidebar"
 
 const data = {
@@ -29,7 +29,7 @@ const data = {
     {
       title: "Fleet Command",
       url: "/",
-      icon: LayoutDashboard,
+      icon: Radar,
       isActive: true,
     },
     {
@@ -40,27 +40,27 @@ const data = {
     {
       title: "Sustainability",
       url: "/sustainability",
-      icon: Leaf,
+      icon: Sprout,
     },
     {
       title: "Digital Twin",
       url: "/digital-twin",
-      icon: Globe2,
+      icon: Hexagon,
     },
     {
       title: "Explainable AI",
       url: "/xai",
-      icon: Bot,
+      icon: BrainCircuit,
     },
     {
       title: "Security SOC",
       url: "/security",
-      icon: ShieldAlert,
+      icon: ShieldCheck,
     },
     {
       title: "Settings",
       url: "/settings",
-      icon: Settings2,
+      icon: SlidersHorizontal,
     },
   ],
 }
@@ -85,14 +85,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
-      <SidebarContent>
-        <SidebarMenu>
+      <SidebarContent className="px-3 py-4">
+        <SidebarMenu className="space-y-2">
           {data.navMain.map((item) => (
             <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton asChild isActive={item.isActive} tooltip={item.title}>
-                <a href={item.url}>
-                  <item.icon />
-                  <span>{item.title}</span>
+              <SidebarMenuButton asChild isActive={item.isActive} tooltip={item.title} className="h-10 px-3">
+                <a href={item.url} className="flex items-center gap-3">
+                  <item.icon className="h-5 w-5 shrink-0" />
+                  <span className="font-medium text-[13px]">{item.title}</span>
                 </a>
               </SidebarMenuButton>
             </SidebarMenuItem>

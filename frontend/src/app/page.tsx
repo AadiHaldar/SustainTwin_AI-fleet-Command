@@ -176,7 +176,7 @@ export default function FleetCommand() {
               ))}
             </CardContent>
           </Card>
-        </motion.initial>
+        </motion.div>
       </div>
     </div>
   )
