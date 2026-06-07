@@ -33,7 +33,7 @@ export default function FleetCommand() {
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {/* KPI Cards */}
-        <motion.initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.1 }}>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.1 }}>
           <Card className="relative overflow-hidden bg-zinc-950/40 backdrop-blur-2xl border-white/10 shadow-[0_0_20px_rgba(16,185,129,0.05)] hover:border-emerald-500/50 hover:shadow-[0_0_30px_rgba(16,185,129,0.15)] transition-all duration-300">
             <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 blur-[40px] rounded-full"></div>
             <CardHeader className="flex flex-row items-center justify-between pb-2 z-10 relative">
@@ -48,9 +48,9 @@ export default function FleetCommand() {
               </div>
             </CardContent>
           </Card>
-        </motion.initial>
+        </motion.div>
 
-        <motion.initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.2 }}>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.2 }}>
           <Card className="relative overflow-hidden bg-zinc-950/40 backdrop-blur-2xl border-white/10 shadow-[0_0_20px_rgba(59,130,246,0.05)] hover:border-blue-500/50 hover:shadow-[0_0_30px_rgba(59,130,246,0.15)] transition-all duration-300">
             <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 blur-[40px] rounded-full"></div>
             <CardHeader className="flex flex-row items-center justify-between pb-2 z-10 relative">
@@ -64,9 +64,9 @@ export default function FleetCommand() {
               </div>
             </CardContent>
           </Card>
-        </motion.initial>
+        </motion.div>
 
-        <motion.initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.3 }}>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.3 }}>
           <Card className="relative overflow-hidden bg-zinc-950/40 backdrop-blur-2xl border-white/10 shadow-[0_0_20px_rgba(239,68,68,0.05)] hover:border-red-500/50 hover:shadow-[0_0_30px_rgba(239,68,68,0.15)] transition-all duration-300">
             <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/10 blur-[40px] rounded-full"></div>
             <CardHeader className="flex flex-row items-center justify-between pb-2 z-10 relative">
@@ -81,9 +81,9 @@ export default function FleetCommand() {
               </div>
             </CardContent>
           </Card>
-        </motion.initial>
+        </motion.div>
 
-        <motion.initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.4 }}>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.4 }}>
           <Card className="relative overflow-hidden bg-zinc-950/40 backdrop-blur-2xl border-white/10 shadow-[0_0_20px_rgba(45,212,191,0.05)] hover:border-teal-500/50 hover:shadow-[0_0_30px_rgba(45,212,191,0.15)] transition-all duration-300">
             <div className="absolute top-0 right-0 w-32 h-32 bg-teal-500/10 blur-[40px] rounded-full"></div>
             <CardHeader className="flex flex-row items-center justify-between pb-2 z-10 relative">
@@ -95,11 +95,11 @@ export default function FleetCommand() {
               <p className="text-xs text-teal-400/80 mt-2 font-medium bg-teal-500/10 border border-teal-500/20 w-fit px-2 py-0.5 rounded-full">Targets Met</p>
             </CardContent>
           </Card>
-        </motion.initial>
+        </motion.div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-7">
-        <motion.initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5 }} className="col-span-4">
+        <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5 }} className="col-span-4">
           <Card className="bg-zinc-950/60 backdrop-blur-2xl border-white/10 h-full shadow-2xl relative overflow-hidden group">
             <div className="absolute inset-0 bg-gradient-to-b from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
             <CardHeader>
@@ -134,9 +134,9 @@ export default function FleetCommand() {
               </div>
             </CardContent>
           </Card>
-        </motion.initial>
+        </motion.div>
 
-        <motion.initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5, delay: 0.2 }} className="col-span-3">
+        <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5, delay: 0.2 }} className="col-span-3">
           <Card className="bg-zinc-950/60 backdrop-blur-2xl border-white/10 h-full shadow-2xl relative overflow-hidden">
              <div className="absolute top-0 right-0 p-4 opacity-[0.03] pointer-events-none">
               <Activity className="h-64 w-64" />

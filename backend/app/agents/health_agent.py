@@ -9,7 +9,11 @@ load_dotenv()
 
 # Set up the Gemini LLM
 # The API key is automatically picked up from the GEMINI_API_KEY env variable
-llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", temperature=0)
+api_key = os.environ.get("GEMINI_API_KEY")
+if not api_key:
+    print("WARNING: GEMINI_API_KEY not found in environment.")
+
+llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0, api_key=api_key)
 
 class AgentState(TypedDict):
     messages: Annotated[Sequence[BaseMessage], lambda a, b: a + b]

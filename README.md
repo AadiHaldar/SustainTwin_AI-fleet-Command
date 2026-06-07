@@ -19,6 +19,25 @@ Designed for the modern industrial enterprise (construction, mining, logistics, 
 
 ---
 
+## 🧠 Core Workflows & Agentic AI
+
+SustainTwin AI is not a passive dashboard; it is an active, autonomous system powered by LangGraph and Google Gemini.
+
+1. **Edge-to-Cloud Sync**: The simulated Edge Node (representing an NVIDIA Jetson on a machine) monitors high-frequency telemetry. It runs local heuristics and only syncs anomalies to the cloud to save bandwidth.
+2. **LangGraph Orchestration**: When an anomaly hits the FastAPI `/sync` endpoint, it triggers the **Health Agent**.
+3. **Explainable AI (XAI)**: The Health Agent passes the raw telemetry context to the **Google Gemini LLM** (`gemini-2.5-flash`), instructing it to act as an expert industrial mechanic. Gemini generates a plain-English Root Cause Analysis and recommended mitigation strategy, which is immediately pushed to the Frontend Command Center.
+
+---
+
+## 🔬 Proof of Concept (POC) & Datasets
+
+To prove the platform's robustness and ability to generalize beyond a single schema, the POC utilizes two highly-regarded industrial datasets:
+
+*   **AI4I 2020 Predictive Maintenance Dataset**: Sourced via Hugging Face. This provides 19,535 rows of realistic milling machine telemetry (RPM, Temperature, Tool Wear) used to seed the core SQLite database and drive the frontend visualizations.
+*   **Microsoft Azure Predictive Maintenance Dataset**: Sourced dynamically via the Kaggle API. We built an exploration script (`explore_kaggle.py`) that successfully downloads and parses **876,100 rows** of alternative telemetry (Voltage, Rotation, Pressure, Vibration) and pipes it directly into our Gemini Agent, proving the system can generalize to entirely new sensor arrays seamlessly.
+
+---
+
 ## 🏗️ Architecture Stack
 
 ### Frontend (The "Wow" Factor)

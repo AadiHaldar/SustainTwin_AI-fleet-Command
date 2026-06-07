@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Float, DateTime, Integer, Boolean, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, JSON, Boolean
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.core.database import Base
@@ -7,30 +7,23 @@ class Machine(Base):
     __tablename__ = "machines"
 
     id = Column(String, primary_key=True, index=True)
-    type = Column(String, index=True) # e.g., "Excavator", "Haul Truck"
-    model = Column(String)
-    location_lat = Column(Float)
-    location_lon = Column(Float)
-    operating_hours = Column(Float, default=0.0)
-    status = Column(String, default="Active") # Active, Maintenance, Offline
+    machine_type = Column(String)
+    status = Column(String, default="Nominal")
     
+    # Relationships
     telemetry = relationship("Telemetry", back_populates="machine")
 
 class Telemetry(Base):
     __tablename__ = "telemetry"
 
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    id = Column(Integer, primary_key=True, index=True)
     machine_id = Column(String, ForeignKey("machines.id"))
     timestamp = Column(DateTime, default=datetime.utcnow)
     
-    # Telemetry metrics
-    engine_rpm = Column(Float)
-    engine_temperature = Column(Float)
-    oil_pressure = Column(Float)
-    vibration_level = Column(Float)
-    fuel_consumption = Column(Float)
+    # Generic JSON column to store ANY Kaggle dataset schema dynamically
+    # e.g., {"engine_rpm": 1200, "vibration_level": 12} OR {"voltage": 160.2, "pressure": 101.4}
+    sensor_data = Column(JSON)
     
-    # Target / Anomaly flag
     failure_risk = Column(Float, default=0.0)
     is_anomaly = Column(Boolean, default=False)
     
