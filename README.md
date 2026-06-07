@@ -1,4 +1,4 @@
-# SustainTwin AI 🌍🤖
+# SustainTwin AI 
 
 **Agentic Edge Intelligence for Sustainable Heavy Machinery Fleets**
 
