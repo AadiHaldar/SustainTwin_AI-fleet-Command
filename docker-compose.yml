@@ -1,0 +1,28 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres:15
+    container_name: sustain_twin_db
+    restart: always
+    environment:
+      POSTGRES_USER: sustain_user
+      POSTGRES_PASSWORD: sustain_password
+      POSTGRES_DB: sustain_twin
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    container_name: sustain_twin_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:
