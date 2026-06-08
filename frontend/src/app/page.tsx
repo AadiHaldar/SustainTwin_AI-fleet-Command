@@ -30,7 +30,6 @@ export default function FleetCommand() {
 
   // WebSocket for real-time updates
   const { lastMessage } = useWebSocket({
-    url: "ws://localhost:8000/ws/telemetry",
     onMessage: (data: unknown) => {
       const msg = data as Record<string, unknown>
       if (msg?.type === "telemetry") {

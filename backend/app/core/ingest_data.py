@@ -29,6 +29,7 @@ def init_db():
     import app.models.machine     # noqa: F401
     import app.models.user        # noqa: F401
     import app.models.diagnosis   # noqa: F401
+    import app.models.twin_state  # noqa: F401
     Base.metadata.create_all(bind=engine)
 
 
@@ -190,6 +191,13 @@ def train_anomaly_model(db: Session):
     model_path = os.path.join(model_dir, "anomaly_model.joblib")
     joblib.dump(model, model_path)
     print(f"[MODEL] IsolationForest saved to {os.path.abspath(model_path)}")
+
+    # Train twin behavior models
+    try:
+        from app.twin.machine_model import train_behavior_models
+        train_behavior_models(db)
+    except Exception as e:
+        print(f"[TWIN] Behavior model training failed: {e}")
 
 
 # ---------------------------------------------------------------------------

@@ -72,9 +72,7 @@ function ConnectionDot({ status }: { status: ConnectionStatus }) {
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
-  const { status } = useWebSocket({
-    url: "ws://localhost:8000/ws/telemetry",
-  })
+  const { status } = useWebSocket()
 
   return (
     <Sidebar collapsible="icon" {...props}>

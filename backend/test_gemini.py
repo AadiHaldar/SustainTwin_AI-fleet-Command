@@ -1,7 +1,12 @@
 import requests
 import os
+from dotenv import load_dotenv
 
-api_key = "AQ.Ab8RN6JEMAj1CVh0qMetYUKn71MBbnD6ENnL9V38wKOeS0Or8g"
+load_dotenv()
+api_key = os.getenv("GEMINI_API_KEY")
+if not api_key:
+    print("Error: GEMINI_API_KEY not found in environment.")
+    exit(1)
 url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
 
 response = requests.get(url)

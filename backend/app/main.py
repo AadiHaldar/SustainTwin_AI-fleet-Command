@@ -42,6 +42,8 @@ app.add_middleware(
 app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["Authentication"])
 app.include_router(telemetry.router, prefix=f"{settings.API_V1_STR}/telemetry", tags=["Telemetry"])
 app.include_router(diagnostics.router, prefix=f"{settings.API_V1_STR}/diagnostics", tags=["Diagnostics"])
+from app.api.twin import router as twin_router
+app.include_router(twin_router, prefix=f"{settings.API_V1_STR}/twin", tags=["Digital Twin"])
 app.include_router(ws_router, tags=["WebSocket"])
 
 # ---------------------------------------------------------------------------
@@ -54,6 +56,7 @@ def create_tables() -> None:
     import app.models.machine   # noqa: F401
     import app.models.user      # noqa: F401
     import app.models.diagnosis  # noqa: F401
+    import app.models.twin_state  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
 

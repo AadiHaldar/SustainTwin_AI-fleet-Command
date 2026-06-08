@@ -156,6 +156,25 @@ async def sync_telemetry(
             payload.machine_id, payload.sensor_data, telemetry.id, db
         )
 
+    # --- Digital Twin Processing ---
+    twin_result = None
+    try:
+        from app.twin.engine import process as twin_process
+        twin_result = twin_process(payload.machine_id, payload.sensor_data, db)
+
+        # If twin detects critical divergence but edge didn't flag anomaly,
+        # still trigger the health agent — this is the twin's core value
+        if twin_result["twin_anomaly"] == "critical" and not payload.is_anomaly:
+            logger.info(
+                "[TWIN] Critical divergence detected for %s (score=%.2f) — triggering agent",
+                payload.machine_id, twin_result["divergence_score"]
+            )
+            agent_result = _run_agent_and_save(
+                payload.machine_id, payload.sensor_data, telemetry.id, db
+            )
+    except Exception as exc:
+        logger.error("[TWIN] Twin processing failed for %s: %s", payload.machine_id, exc)
+
     # Broadcast via WebSocket (fire-and-forget in the event loop)
     broadcast_msg = {
         "type": "telemetry_sync",
@@ -164,6 +183,7 @@ async def sync_telemetry(
         "sensor_data": payload.sensor_data,
         "is_anomaly": payload.is_anomaly,
         "agent_result": agent_result,
+        "twin_result": twin_result,
     }
     try:
         asyncio.get_event_loop().create_task(manager.broadcast(broadcast_msg))
@@ -175,6 +195,7 @@ async def sync_telemetry(
         "telemetry_id": telemetry.id,
         "recorded_at": cache_payload["timestamp"],
         "agent_result": agent_result,
+        "twin_result": twin_result,
     }
 
 

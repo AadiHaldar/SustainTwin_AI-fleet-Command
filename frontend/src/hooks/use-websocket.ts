@@ -5,18 +5,21 @@ import { useEffect, useRef, useState, useCallback } from "react"
 export type ConnectionStatus = "connecting" | "connected" | "disconnected"
 
 interface UseWebSocketOptions {
-  url: string
+  url?: string
   onMessage?: (data: unknown) => void
   reconnectInterval?: number
   maxReconnectAttempts?: number
 }
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+const DEFAULT_WS_URL = API_BASE.replace(/^http/, "ws") + "/ws/telemetry"
+
 export function useWebSocket({
-  url,
+  url = DEFAULT_WS_URL,
   onMessage,
   reconnectInterval = 3000,
   maxReconnectAttempts = 10,
-}: UseWebSocketOptions) {
+}: UseWebSocketOptions = {}) {
   const [status, setStatus] = useState<ConnectionStatus>("disconnected")
   const [lastMessage, setLastMessage] = useState<unknown>(null)
   const wsRef = useRef<WebSocket | null>(null)
