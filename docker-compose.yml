@@ -52,6 +52,26 @@ services:
       redis:
         condition: service_healthy
 
+  frontend:
+    build: ./frontend
+    container_name: sustain_twin_frontend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
+    depends_on:
+      - backend
+
+  edge_simulator:
+    build: ./edge
+    container_name: sustain_twin_edge
+    restart: always
+    environment:
+      - BACKEND_URL=http://backend:8000/api/v1/telemetry/sync
+    depends_on:
+      - backend
+
 volumes:
   postgres_data:
   redis_data:
