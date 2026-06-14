@@ -14,6 +14,7 @@ import {
   Sprout,
   Wifi,
   WifiOff,
+  LogOut
 } from "lucide-react"
 
 import {
@@ -112,8 +113,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           ))}
         </SidebarMenu>
       </SidebarContent>
-      <SidebarFooter>
+      <SidebarFooter className="p-3 space-y-2">
         <ConnectionDot status={status} />
+        <button 
+          onClick={() => {
+            localStorage.removeItem("sustaintwin_token")
+            localStorage.removeItem("sustaintwin_role")
+            window.location.href = "/login"
+          }}
+          className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100 transition-colors"
+        >
+          <LogOut className="h-4 w-4" />
+          <span>Sign Out</span>
+        </button>
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

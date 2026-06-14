@@ -8,17 +8,30 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 
-const healthData = [
-  { machine: "M-101", score: 98, hours: 1200 },
-  { machine: "M-102", score: 75, hours: 3400 },
-  { machine: "M-103", score: 92, hours: 2100 },
-  { machine: "M-104", score: 45, hours: 4800 },
-  { machine: "M-105", score: 88, hours: 1500 },
-  { machine: "M-106", score: 96, hours: 900 },
-  { machine: "M-107", score: 62, hours: 4100 },
-]
+import { fetchDiagnostics, fetchStats, type DiagnosisRecord, type FleetStats } from "@/hooks/use-api"
 
 export default function MachineHealth() {
+  const [stats, setStats] = React.useState<FleetStats | null>(null)
+  const [diags, setDiags] = React.useState<DiagnosisRecord[]>([])
+
+  React.useEffect(() => {
+    fetchStats().then(s => { if (s) setStats(s) }).catch(() => {})
+    fetchDiagnostics().then(d => { if (d) setDiags(d) }).catch(() => {})
+  }, [])
+
+  const healthData = React.useMemo(() => {
+    if (diags.length === 0) return []
+    // Group diags by machine to get health scores
+    const latestDiags = new Map<string, DiagnosisRecord>()
+    for (const d of diags) {
+      if (!latestDiags.has(d.machine_id)) latestDiags.set(d.machine_id, d)
+    }
+    return Array.from(latestDiags.values()).map(d => ({
+      machine: d.machine_id,
+      score: d.confidence ? Math.round((1 - d.confidence) * 100) : 100, // Just an estimation proxy for score
+      risk: d.severity
+    }))
+  }, [diags])
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -36,7 +49,7 @@ export default function MachineHealth() {
               <AlertTriangle className="h-4 w-4 text-destructive" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-destructive">2</div>
+              <div className="text-2xl font-bold text-destructive">{stats ? stats.active_anomalies_24h : 2}</div>
               <p className="text-xs text-muted-foreground mt-1">Require immediate maintenance</p>
             </CardContent>
           </Card>
@@ -45,12 +58,12 @@ export default function MachineHealth() {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.2 }}>
           <Card className="bg-card/50 backdrop-blur-xl border-white/10">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Scheduled Maintenance</CardTitle>
-              <Wrench className="h-4 w-4 text-orange-400" />
+              <CardTitle className="text-sm font-medium text-muted-foreground">Fleet Health Score</CardTitle>
+              <Wrench className="h-4 w-4 text-emerald-400" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-orange-400">8</div>
-              <p className="text-xs text-muted-foreground mt-1">Within next 7 days</p>
+              <div className="text-2xl font-bold text-emerald-400">{stats ? stats.fleet_health_score.toFixed(1) : 87}</div>
+              <p className="text-xs text-muted-foreground mt-1">Out of 100</p>
             </CardContent>
           </Card>
         </motion.div>
@@ -85,24 +98,23 @@ export default function MachineHealth() {
               <CardDescription>Machines with low RUL (Remaining Useful Life)</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {[
-                { id: "M-104", type: "Excavator", score: 45, issue: "Bearing wear (SHAP feature: vibration)", action: "Replace Part" },
-                { id: "M-107", type: "Haul Truck", score: 62, issue: "Coolant leak (SHAP feature: temp)", action: "Inspect Engine" },
-              ].map((machine) => (
-                <div key={machine.id} className="flex items-center justify-between p-4 border border-destructive/20 rounded-lg bg-destructive/5 hover:bg-destructive/10 transition-colors">
+              {diags.slice(0, 5).map((machine) => (
+                <div key={machine.id} className={`flex items-center justify-between p-4 border rounded-lg transition-colors ${machine.severity === 'critical' ? 'border-destructive/20 bg-destructive/5 hover:bg-destructive/10' : 'border-orange-500/20 bg-orange-500/5 hover:bg-orange-500/10'}`}>
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold">{machine.id}</span>
-                      <span className="text-sm text-muted-foreground">({machine.type})</span>
+                      <span className="font-semibold">{machine.machine_id}</span>
+                      <span className="text-sm text-muted-foreground">({machine.severity.toUpperCase()})</span>
                     </div>
-                    <p className="text-sm text-muted-foreground mt-1">{machine.issue}</p>
-                    <Badge variant="outline" className="mt-2 border-orange-500 text-orange-500 hover:bg-orange-500 hover:text-white cursor-pointer">
-                      Action: {machine.action}
+                    <p className="text-sm text-muted-foreground mt-1">{machine.root_cause || "Anomaly detected"}</p>
+                    <Badge variant="outline" className={`mt-2 ${machine.severity === 'critical' ? 'border-red-500 text-red-500' : 'border-orange-500 text-orange-500'}`}>
+                      Action: {machine.recommended_action || "Inspect"}
                     </Badge>
                   </div>
                   <div className="text-right">
-                    <div className="text-2xl font-bold text-destructive">{machine.score}</div>
-                    <div className="text-xs text-muted-foreground">Score</div>
+                    <div className={`text-2xl font-bold ${machine.severity === 'critical' ? 'text-destructive' : 'text-orange-400'}`}>
+                      {machine.confidence ? Math.round(machine.confidence * 100) : 80}%
+                    </div>
+                    <div className="text-xs text-muted-foreground">AI Confidence</div>
                   </div>
                 </div>
               ))}

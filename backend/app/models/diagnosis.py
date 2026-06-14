@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, JSON, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, DateTime, JSON, ForeignKey, Index
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 
@@ -7,11 +7,14 @@ from app.core.database import Base
 
 class Diagnosis(Base):
     __tablename__ = "diagnoses"
+    __table_args__ = (
+        Index('idx_diagnosis_machine_time', 'machine_id', 'timestamp'),
+    )
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     machine_id = Column(String, ForeignKey("machines.id"), index=True)
     telemetry_id = Column(Integer, ForeignKey("telemetry.id"), nullable=True)
-    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
     # Agent outputs
     severity = Column(String)  # low, medium, critical

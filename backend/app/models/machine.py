@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, JSON, Boolean
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, JSON, Boolean, Index
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 from app.core.database import Base
@@ -18,6 +18,9 @@ class Machine(Base):
 
 class Telemetry(Base):
     __tablename__ = "telemetry"
+    __table_args__ = (
+        Index('idx_telemetry_machine_time', 'machine_id', 'timestamp'),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     machine_id = Column(String, ForeignKey("machines.id"), index=True)

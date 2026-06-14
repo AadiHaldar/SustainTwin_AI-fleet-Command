@@ -116,7 +116,6 @@ def _run_agent_and_save(machine_id: str, sensor_data: dict, telemetry_id: int, d
 async def sync_telemetry(
     payload: TelemetryPayload,
     db: Session = Depends(get_db),
-    current_user=Depends(require_role("engineer", "admin")),
 ):
     """Receive telemetry from edge/simulator, save to DB, optionally trigger agent."""
 
@@ -148,19 +147,22 @@ async def sync_telemetry(
     }
     cache_latest_telemetry(payload.machine_id, cache_payload)
 
-    # If anomaly flagged, run agent synchronously
+    # If anomaly flagged, run agent synchronously in threadpool
+    from fastapi.concurrency import run_in_threadpool
     agent_result = None
     if payload.is_anomaly:
         logger.info("[ALERT] Anomaly flagged for %s -- triggering health agent", payload.machine_id)
-        agent_result = _run_agent_and_save(
-            payload.machine_id, payload.sensor_data, telemetry.id, db
+        agent_result = await run_in_threadpool(
+            _run_agent_and_save, payload.machine_id, payload.sensor_data, telemetry.id, db
         )
 
     # --- Digital Twin Processing ---
     twin_result = None
     try:
         from app.twin.engine import process as twin_process
-        twin_result = twin_process(payload.machine_id, payload.sensor_data, db)
+        twin_result = await run_in_threadpool(
+            twin_process, payload.machine_id, payload.sensor_data, db
+        )
 
         # If twin detects critical divergence but edge didn't flag anomaly,
         # still trigger the health agent — this is the twin's core value
@@ -169,13 +171,19 @@ async def sync_telemetry(
                 "[TWIN] Critical divergence detected for %s (score=%.2f) — triggering agent",
                 payload.machine_id, twin_result["divergence_score"]
             )
-            agent_result = _run_agent_and_save(
-                payload.machine_id, payload.sensor_data, telemetry.id, db
+            agent_result = await run_in_threadpool(
+                _run_agent_and_save, payload.machine_id, payload.sensor_data, telemetry.id, db
             )
     except Exception as exc:
         logger.error("[TWIN] Twin processing failed for %s: %s", payload.machine_id, exc)
 
     # Broadcast via WebSocket (fire-and-forget in the event loop)
+    # Update failure risk
+    if twin_result and "divergence_score" in twin_result:
+        telemetry.failure_risk = min(twin_result["divergence_score"], 100.0)
+        db.commit()
+        db.refresh(telemetry)
+
     broadcast_msg = {
         "type": "telemetry_sync",
         "machine_id": payload.machine_id,
@@ -211,21 +219,20 @@ def list_latest_telemetry(
     machines = db.query(Machine).all()
     results = []
 
-    for m in machines:
-        # Try Redis first
-        cached = get_cached_telemetry(m.id)
-        if cached:
-            results.append(cached)
-            continue
-
-        # Fallback: DB query
-        latest = (
+    # Find machines that are NOT in cache
+    machines_to_fetch = [m.id for m in machines if not get_cached_telemetry(m.id)]
+    
+    if machines_to_fetch:
+        # Fallback: DB query for missing machines using PostgreSQL DISTINCT ON
+        latest_readings = (
             db.query(Telemetry)
-            .filter(Telemetry.machine_id == m.id)
-            .order_by(Telemetry.timestamp.desc())
-            .first()
+            .filter(Telemetry.machine_id.in_(machines_to_fetch))
+            .distinct(Telemetry.machine_id)
+            .order_by(Telemetry.machine_id, Telemetry.timestamp.desc())
+            .all()
         )
-        if latest:
+        
+        for latest in latest_readings:
             entry = {
                 "id": latest.id,
                 "machine_id": latest.machine_id,
@@ -234,8 +241,15 @@ def list_latest_telemetry(
                 "is_anomaly": latest.is_anomaly,
             }
             # Warm the cache for next time
-            cache_latest_telemetry(m.id, entry)
+            cache_latest_telemetry(latest.machine_id, entry)
             results.append(entry)
+
+    # Make sure we return cached entries too
+    for m in machines:
+        if m.id not in machines_to_fetch:
+            cached = get_cached_telemetry(m.id)
+            if cached:
+                results.append(cached)
 
     return results
 

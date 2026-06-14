@@ -99,4 +99,52 @@ export async function fetchHealthCheck(): Promise<{ status: string; database: st
   return res.json()
 }
 
+export interface FleetStats {
+  total_machines: number
+  active_anomalies_24h: number
+  avg_confidence: number
+  total_carbon_saved_kg: number
+  anomaly_rate_percent: number
+  fleet_health_score: number
+}
+
+export async function fetchStats(): Promise<FleetStats | null> {
+  const res = await fetch(`${API_BASE}/api/v1/stats`, {
+    headers: authHeaders(),
+  })
+  if (!res.ok) return null
+  return res.json()
+}
+
+export async function fetchMachines(): Promise<MachineRecord[]> {
+  // Extract machines from latest telemetry as a workaround if machines endpoint doesn't exist
+  // Or if it does exist, we can use it. Since the audit mentioned no fetchMachines API call,
+  // we can use fetchTelemetry to get the latest reading for each machine.
+  const telemetry = await fetchTelemetry()
+  return telemetry.map(t => ({
+    id: t.machine_id,
+    machine_type: "Unknown", // Or we can deduce from ID
+    status: "Active"
+  }))
+}
+
+export function useApi() {
+  return {
+    get: async (endpoint: string) => {
+      const res = await fetch(`${API_BASE}/api/v1${endpoint}`, { headers: authHeaders() });
+      if (!res.ok) throw new Error(`GET ${endpoint} failed`);
+      return res.json();
+    },
+    post: async (endpoint: string, body: any) => {
+      const res = await fetch(`${API_BASE}/api/v1${endpoint}`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error(`POST ${endpoint} failed`);
+      return res.json();
+    }
+  }
+}
+
 export type { LoginResponse, TelemetryReading, DiagnosisRecord, MachineRecord }

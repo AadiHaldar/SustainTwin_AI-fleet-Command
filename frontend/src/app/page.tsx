@@ -8,7 +8,9 @@ import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YA
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useWebSocket } from "@/hooks/use-websocket"
-import { fetchTelemetry, fetchDiagnostics, type TelemetryReading, type DiagnosisRecord } from "@/hooks/use-api"
+import { fetchTelemetry, fetchDiagnostics, fetchStats, type TelemetryReading, type DiagnosisRecord, type FleetStats } from "@/hooks/use-api"
+import { toast } from "sonner"
+import { Spinner } from "@/components/ui/spinner"
 
 // Fallback static data for when backend is unavailable
 const fallbackTelemetry = [
@@ -24,8 +26,7 @@ const fallbackTelemetry = [
 export default function FleetCommand() {
   const [chartData, setChartData] = React.useState(fallbackTelemetry)
   const [alerts, setAlerts] = React.useState<DiagnosisRecord[]>([])
-  const [machineCount, setMachineCount] = React.useState({ active: 0, total: 0 })
-  const [failureCount, setFailureCount] = React.useState(0)
+  const [stats, setStats] = React.useState<FleetStats | null>(null)
   const [pulseCard, setPulseCard] = React.useState<string | null>(null)
 
   // WebSocket for real-time updates
@@ -49,19 +50,34 @@ export default function FleetCommand() {
         }
       }
       if (msg?.type === "diagnosis") {
-        setAlerts((prev) => [msg as unknown as DiagnosisRecord, ...prev.slice(0, 4)])
-        setFailureCount((c) => c + 1)
+        const diag = msg as unknown as DiagnosisRecord
+        setAlerts((prev) => [diag, ...prev.slice(0, 4)])
+        
+        // Show toast
+        if (diag.severity === "critical") {
+          toast.error(`Critical Alert: ${diag.machine_id}`, {
+            description: diag.root_cause || "Immediate attention required.",
+          })
+        } else if (diag.severity === "medium" || diag.severity === "high") {
+          toast.warning(`Warning: ${diag.machine_id}`, {
+            description: diag.root_cause || "Anomaly detected.",
+          })
+        }
       }
     },
   })
 
   // Fetch initial data from API
   React.useEffect(() => {
+    fetchStats()
+      .then((data) => {
+        if (data) setStats(data)
+      })
+      .catch(() => {})
+
     fetchTelemetry()
       .then((readings) => {
         if (readings.length > 0) {
-          const machineIds = new Set(readings.map((r) => r.machine_id))
-          setMachineCount({ active: machineIds.size, total: machineIds.size })
 
           const chartPoints = readings.slice(-12).map((r) => ({
             time: new Date(r.timestamp).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
@@ -78,7 +94,6 @@ export default function FleetCommand() {
       .then((diags) => {
         if (diags.length > 0) {
           setAlerts(diags.slice(0, 5))
-          setFailureCount(diags.filter((d) => d.severity === "critical").length)
         }
       })
       .catch(() => {})
@@ -114,11 +129,17 @@ export default function FleetCommand() {
             </CardHeader>
             <CardContent className="z-10 relative">
               <div className="text-3xl font-extrabold text-white">
-                {machineCount.active || 5} <span className="text-xl text-emerald-400/80 font-medium">/ {machineCount.total || 5}</span>
+                {stats ? (
+                  <>{stats.total_machines} <span className="text-xl text-emerald-400/80 font-medium">/ {stats.total_machines}</span></>
+                ) : (
+                  <Spinner className="text-emerald-400" />
+                )}
               </div>
               <div className="flex items-center gap-2 mt-2">
                 <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <p className="text-xs text-emerald-400/80 font-medium tracking-wide">99.2% Availability</p>
+                <p className="text-xs text-emerald-400/80 font-medium tracking-wide">
+                  {stats ? (100 - stats.anomaly_rate_percent).toFixed(1) : "99.2"}% Availability
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -132,9 +153,9 @@ export default function FleetCommand() {
               <Activity className="h-5 w-5 text-blue-400" />
             </CardHeader>
             <CardContent className="z-10 relative">
-              <div className="text-3xl font-extrabold text-white">87.4</div>
+              <div className="text-3xl font-extrabold text-white">{stats ? stats.fleet_health_score.toFixed(1) : "87.4"}</div>
               <div className="flex items-center gap-1 mt-2 text-xs font-medium text-blue-400/80 bg-blue-500/10 w-fit px-2 py-0.5 rounded-full border border-blue-500/20">
-                <Zap className="h-3 w-3" /> +2.4% vs last week
+                <Zap className="h-3 w-3" /> Live computed
               </div>
             </CardContent>
           </Card>
@@ -148,10 +169,10 @@ export default function FleetCommand() {
               <AlertTriangle className="h-5 w-5 text-red-400" />
             </CardHeader>
             <CardContent className="z-10 relative">
-              <div className="text-3xl font-extrabold text-white">{failureCount || 3}</div>
+              <div className="text-3xl font-extrabold text-white">{stats ? stats.active_anomalies_24h : 3}</div>
               <div className="flex items-center gap-2 mt-2">
                 <span className="flex h-2 w-2 rounded-full bg-red-500 animate-pulse"></span>
-                <p className="text-xs text-red-400/80 font-medium">Critical attention needed</p>
+                <p className="text-xs text-red-400/80 font-medium">Active Anomalies (24h)</p>
               </div>
             </CardContent>
           </Card>
@@ -161,12 +182,12 @@ export default function FleetCommand() {
           <Card className="relative overflow-hidden bg-zinc-950/40 backdrop-blur-2xl border-white/10 shadow-[0_0_20px_rgba(45,212,191,0.05)] hover:border-teal-500/50 hover:shadow-[0_0_30px_rgba(45,212,191,0.15)] transition-all duration-300">
             <div className="absolute top-0 right-0 w-32 h-32 bg-teal-500/10 blur-[40px] rounded-full"></div>
             <CardHeader className="flex flex-row items-center justify-between pb-2 z-10 relative">
-              <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Carbon Efficiency</CardTitle>
+              <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Carbon Saved</CardTitle>
               <Droplet className="h-5 w-5 text-teal-400" />
             </CardHeader>
             <CardContent className="z-10 relative">
-              <div className="text-3xl font-extrabold text-white">92<span className="text-xl text-teal-400/80 font-medium">/100</span></div>
-              <p className="text-xs text-teal-400/80 mt-2 font-medium bg-teal-500/10 border border-teal-500/20 w-fit px-2 py-0.5 rounded-full">Targets Met</p>
+              <div className="text-3xl font-extrabold text-white">{stats ? Math.round(stats.total_carbon_saved_kg) : 92}<span className="text-xl text-teal-400/80 font-medium"> kg</span></div>
+              <p className="text-xs text-teal-400/80 mt-2 font-medium bg-teal-500/10 border border-teal-500/20 w-fit px-2 py-0.5 rounded-full">Total Optimization</p>
             </CardContent>
           </Card>
         </motion.div>

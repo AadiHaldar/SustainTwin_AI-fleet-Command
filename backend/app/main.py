@@ -9,7 +9,7 @@ from app.core.config import get_settings
 from app.core.database import Base, engine, get_db
 
 # Import routers
-from app.api import auth, telemetry, diagnostics
+from app.api import auth, telemetry, diagnostics, stats
 from app.api.websocket import router as ws_router
 
 settings = get_settings()
@@ -23,10 +23,7 @@ app = FastAPI(
 # ---------------------------------------------------------------------------
 # CORS
 # ---------------------------------------------------------------------------
-origins = [
-    "http://localhost",
-    "http://localhost:3000",
-]
+origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
 
 app.add_middleware(
     CORSMiddleware,
@@ -40,6 +37,7 @@ app.add_middleware(
 # Register routers
 # ---------------------------------------------------------------------------
 app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["Authentication"])
+app.include_router(stats.router, prefix=f"{settings.API_V1_STR}/stats", tags=["Stats"])
 app.include_router(telemetry.router, prefix=f"{settings.API_V1_STR}/telemetry", tags=["Telemetry"])
 app.include_router(diagnostics.router, prefix=f"{settings.API_V1_STR}/diagnostics", tags=["Diagnostics"])
 from app.api.twin import router as twin_router

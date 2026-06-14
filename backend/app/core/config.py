@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "SustainTwin AI"
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"
+    CORS_ORIGINS: str = "http://localhost,http://localhost:3000"
 
     # Database — Supabase PostgreSQL (no SQLite fallback)
     DATABASE_URL: str = "postgresql+psycopg2://sustain_user:sustain_password@localhost:5432/sustain_twin"

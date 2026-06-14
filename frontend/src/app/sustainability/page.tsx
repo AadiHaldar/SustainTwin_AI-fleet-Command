@@ -7,6 +7,7 @@ import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis, PieChart, 
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { fetchDiagnostics, fetchStats, type DiagnosisRecord, type FleetStats } from "@/hooks/use-api"
 
 const emissionsData = [
   { time: "Mon", co2: 4000, target: 4500 },
@@ -27,6 +28,30 @@ const carbonSources = [
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#6366f1']
 
 export default function SustainabilityDashboard() {
+  const [stats, setStats] = React.useState<FleetStats | null>(null)
+  const [diags, setDiags] = React.useState<DiagnosisRecord[]>([])
+
+  React.useEffect(() => {
+    fetchStats().then(s => { if (s) setStats(s) }).catch(() => {})
+    fetchDiagnostics().then(d => { if (d) setDiags(d) }).catch(() => {})
+  }, [])
+
+  // Get top 2 unique sustainability recommendations
+  const recommendations = React.useMemo(() => {
+    const recs: { text: string; carbon: number }[] = []
+    const seen = new Set()
+    for (const d of diags) {
+      if (d.sustainability_recommendation && d.carbon_delta_kg > 0) {
+        if (!seen.has(d.sustainability_recommendation)) {
+          seen.add(d.sustainability_recommendation)
+          recs.push({ text: d.sustainability_recommendation, carbon: d.carbon_delta_kg })
+        }
+      }
+      if (recs.length >= 2) break
+    }
+    return recs
+  }, [diags])
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -44,8 +69,10 @@ export default function SustainabilityDashboard() {
               <Wind className="h-4 w-4 text-emerald-400" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-emerald-400">19,550 kg</div>
-              <p className="text-xs text-muted-foreground mt-1">-12% vs last month</p>
+              <div className="text-2xl font-bold text-emerald-400">
+                {stats ? Math.round(stats.total_carbon_saved_kg).toLocaleString() : "19,550"} kg
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Total optimization savings</p>
             </CardContent>
           </Card>
         </motion.div>
@@ -126,22 +153,20 @@ export default function SustainabilityDashboard() {
               <CardDescription>AI-driven strategies to cut emissions</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center justify-between p-4 border border-emerald-500/20 rounded-lg bg-emerald-500/5">
-                <div>
-                  <h4 className="font-semibold">Optimize Idle Times</h4>
-                  <p className="text-sm text-muted-foreground mt-1">Haul trucks M-112 to M-115 are idling &gt;15 mins.</p>
-                  <Badge variant="outline" className="mt-2 border-emerald-500 text-emerald-500">Save 450 kg CO₂</Badge>
-                </div>
-                <Badge>Execute</Badge>
-              </div>
-              <div className="flex items-center justify-between p-4 border border-blue-500/20 rounded-lg bg-blue-500/5">
-                <div>
-                  <h4 className="font-semibold">Route Optimization</h4>
-                  <p className="text-sm text-muted-foreground mt-1">Adjust Site A routes to reduce incline traversal.</p>
-                  <Badge variant="outline" className="mt-2 border-blue-500 text-blue-500">Save 220 kg CO₂</Badge>
-                </div>
-                <Badge>Execute</Badge>
-              </div>
+              {recommendations.length > 0 ? (
+                recommendations.map((rec, i) => (
+                  <div key={i} className={`flex items-center justify-between p-4 border rounded-lg ${i === 0 ? 'border-emerald-500/20 bg-emerald-500/5' : 'border-blue-500/20 bg-blue-500/5'}`}>
+                    <div>
+                      <h4 className="font-semibold">{i === 0 ? "Priority Optimization" : "Secondary Action"}</h4>
+                      <p className="text-sm text-muted-foreground mt-1">{rec.text}</p>
+                      <Badge variant="outline" className={`mt-2 ${i === 0 ? 'border-emerald-500 text-emerald-500' : 'border-blue-500 text-blue-500'}`}>Save {Math.round(rec.carbon)} kg CO₂</Badge>
+                    </div>
+                    <Badge>Execute</Badge>
+                  </div>
+                ))
+              ) : (
+                <div className="text-sm text-zinc-400 italic py-4">No active recommendations. Analyzing telemetry...</div>
+              )}
               
               <div className="pt-4 flex justify-center">
                 <ResponsiveContainer width="100%" height={120}>
